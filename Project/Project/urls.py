@@ -16,12 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from Users.views import LoginView, UserView, UserViewSet, CustomUserTokenObtainPairView
+from Branches.views import BranchViewSet, SubjectViewSet
 
 from django.urls import path, include
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularSwaggerView
 from drf_spectacular.views import SpectacularAPIView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import routers
 from Users import views
 
@@ -29,6 +30,9 @@ from Users import views
 
 router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
+router.register(r'branches', BranchViewSet)  
+router.register(r'subjects', SubjectViewSet)
+
 
 
 
@@ -44,9 +48,11 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-    
+
     path('api/me/', UserView.as_view(), name='user_me'),
+
+
+    path('api/branches/', BranchViewSet.as_view({'get': 'list', 'post': 'create'}), name='branch-list'),
+    path('api/subjects/', SubjectViewSet.as_view({'get': 'list', 'post': 'create'}), name='subject-list'),
     
 ] 

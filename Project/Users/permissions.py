@@ -9,3 +9,8 @@ class IsAdminRole(permissions.BasePermission):
 class IsTeacherRole(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and getattr(request.user, 'role', None) == 'teacher'
+    
+
+class IsAdminOrTeacherRole(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and getattr(request.user, 'role', None) in ['admin', 'teacher']

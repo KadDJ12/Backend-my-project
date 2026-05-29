@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
+from Branches.models import Branch
 
 
 class CustomUserManager(BaseUserManager):
@@ -17,6 +18,7 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'admin')
+        extra_fields.setdefault('branch', None)
 
         return self.create_user(phone, password, **extra_fields)
 
@@ -27,12 +29,19 @@ class CustomUser(AbstractUser):
     phone = models.CharField(max_length=22, unique=True)
     role = models.CharField(
         max_length=10,
-        choices=[('admin', 'Administrator'), ('teacher', 'Teacher')],
+        choices=[('admin', 'Administrator'), ('teacher', 'Teacher'),],
         default='teacher',
     )
     registered_at = models.DateTimeField(auto_now_add=True)
+    branches = models.ManyToManyField(Branch, blank=True, related_name='branch')
     USERNAME_FIELD = 'phone'
     REQUIRED_FIELDS = ['first_name', 'last_name']
+
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.id:
+            self.is_staff = True
 
 
     objects = CustomUserManager()

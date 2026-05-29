@@ -4,7 +4,7 @@ from django.contrib.auth.admin import UserAdmin as userAdmin
 
 class CustomUserAdmin(userAdmin):
     model = CustomUser
-    list_display = ('phone', 'first_name', 'last_name', 'role', 'is_active')
+    list_display = ('phone', 'first_name', 'last_name', 'role', 'is_active',)
     list_filter = ('role', 'is_active', 'is_staff')
     search_fields = ('phone', 'first_name', 'last_name')
     ordering = ('phone',)
@@ -14,12 +14,12 @@ class CustomUserAdmin(userAdmin):
         ('Role & Permissions', {
         'fields': ('role', 'is_active', 'is_staff', 'is_superuser')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
+        ('Branches', {'fields': ('branches',)}),
     )
     add_fieldsets = (
         (None, {
-        'classes': ('wide',),
-        'fields': ('phone', 'first_name', 'last_name',
-        'role', 'password1', 'password2'),
-    }),
-)
+            'classes': ('wide',),
+            'fields': ('phone', 'first_name', 'last_name', 'role', 'branches', 'password1', 'password2'),
+        }),
+    )
 admin.site.register(CustomUser, CustomUserAdmin)
