@@ -1,0 +1,4 @@
+{
+    "editor.aiStats.enabled": false,
+    "github.copilot.chat.anthropic.thinking.budgetTokens": 32000
+}

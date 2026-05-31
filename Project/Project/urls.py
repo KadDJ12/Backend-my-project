@@ -15,14 +15,16 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from Users.views import LoginView, UserView, UserViewSet, CustomUserTokenObtainPairView
+from Users.views import LoginView, UserViewSet, CustomUserTokenObtainPairView
+from Students.views import StudentViewSet
+from Groups.views import GroupViewSet
 from Branches.views import BranchViewSet, SubjectViewSet
+from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from django.urls import path, include
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularSwaggerView
 from drf_spectacular.views import SpectacularAPIView
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import routers
 from Users import views
 
@@ -32,6 +34,9 @@ router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
 router.register(r'branches', BranchViewSet)  
 router.register(r'subjects', SubjectViewSet)
+router.register(r'students',StudentViewSet)
+router.register(r'groups',GroupViewSet)
+
 
 
 
@@ -46,13 +51,10 @@ urlpatterns = [
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-
-    path('api/me/', UserView.as_view(), name='user_me'),
+    path('api/token/', CustomUserTokenObtainPairView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
 
-    path('api/branches/', BranchViewSet.as_view({'get': 'list', 'post': 'create'}), name='branch-list'),
-    path('api/subjects/', SubjectViewSet.as_view({'get': 'list', 'post': 'create'}), name='subject-list'),
+    
     
 ] 

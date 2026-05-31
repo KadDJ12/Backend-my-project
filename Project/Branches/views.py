@@ -4,17 +4,37 @@ from rest_framework.decorators import action
 from .models import Branch , Subject
 from .serializer import BranchSerializer, SubjectSerializer
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from Users.permissions import IsAdminRole
 
 
 
 class BranchViewSet(viewsets.ModelViewSet):
     queryset = Branch.objects.all()
     serializer_class = BranchSerializer
+    permission_classes = [IsAuthenticated,IsAdminRole]
 
 
+    def get_queryset(self):
+        user = self.request.user
+        if not user or user.is_anonymous:
+            return Branch.objects.none()
+        
+        # 🌟 Повертаємо тільки ті філії, до яких цей адмін прив'язаний в адмінці
+        return user.branches.all()
+    
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or user.is_anonymous:
+            return Subject.objects.none()
+        
+        return self.queryset.filter(branch__in=user.branches.all()).distinct()
 
     # @action(detail=False, methods=['get'], url_path='math')
     # def get_math_subjects(self, request):

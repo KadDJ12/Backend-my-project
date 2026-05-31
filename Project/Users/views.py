@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate, login
 
 from rest_framework import viewsets, permissions
 from .models import CustomUser
-from .serializers import CustomUserSerializer
+from .serializers import CustomUserSerializer,UserReadSerializer
 from rest_framework.views import APIView
 
 from rest_framework.response import Response
@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from Users.serializers import UserUpdateSerializer
 
 class LoginView(APIView):
     def get(self, request):
@@ -34,13 +35,6 @@ class LoginView(APIView):
             return redirect('home')
         return Response({'error': 'Phone or password is incorrect.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-class UserView(APIView):  # щоб отримати інформацію про користувача на сторінці
-    permission_classes = [permissions.IsAuthenticated]
-    def get(self, request):
-        user = request.user
-        serializer = CustomUserSerializer(user)
-        return Response(serializer.data)
-
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -50,18 +44,40 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(
         detail=False, 
         methods=['get', 'put', 'patch'], 
-        permission_classes=[IsAuthenticated] # Перекриваємо глобальний IsAdminRole на звичайний IsAuthenticated (Слайд 45)
+        permission_classes=[IsAuthenticated] 
     )
     def me(self, request):
         user = request.user
+        
+        # 1. Обробка оновлення профілю (PUT / PATCH)
         if request.method in ['PUT', 'PATCH']:
-            serializer = self.get_serializer(user, data=request.data, partial=True)
+            serializer = UserUpdateSerializer(user, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            return Response(serializer.data)
-        else:
-            serializer = self.get_serializer(user)
-            return Response(serializer.data)
+            return Response(serializer.data) 
+     
+        serializer = UserReadSerializer(user)
+        return Response(serializer.data)
+        
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or user.is_anonymous:
+            return self.queryset.none()
+        
+        if user.role == 'admin':
+            return self.queryset.filter(branches__in=user.branches.all()).distinct()
+        return self.queryset.none()  
+
+    def get_permissions(self):
+        if self.action == 'me':
+            return [IsAuthenticated()]
+        return super().get_permissions()
+    
+    
+    
+
+
         
 class CustomUserTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
