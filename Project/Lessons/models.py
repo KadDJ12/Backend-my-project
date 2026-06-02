@@ -44,7 +44,7 @@ class Lesson(models.Model):
                 end_time__gt=self.start_time,
             ).exclude(pk=self.pk).exclude(status='CANCELLED')
         
-            if overlapping_lessons.filter(self.teacher).exists():
+            if overlapping_lessons.filter(teacher=self.teacher).exists():
                 raise ValidationError('This lesson overlaps with another scheduled lesson.')
         
 
@@ -53,7 +53,7 @@ class Lesson(models.Model):
                     models.Q(student=self.student) | models.Q(group__students=self.student)
                 ).exists()
 
-                if student_cnflicts.exists():
+                if student_cnflicts:
                     raise ValidationError('This lesson overlaps with another scheduled lesson for the assigned student.')
 
 
@@ -105,5 +105,5 @@ class Attendance(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        status = "Присутній" if self.is_present else "Відсутній"
+        status = "Присутній" if self.present else "Відсутній"
         return f"{self.student} - {self.lesson.date} ({status})"

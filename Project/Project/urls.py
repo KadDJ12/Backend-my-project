@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from Users.views import LoginView, UserViewSet, CustomUserTokenObtainPairView
 from Students.views import StudentViewSet
+from Lessons.views import LessonsViewSet,AttendanceViewSet
+from Subscriptions.views import SubscriptionPlanViewSet, StudentSubscriptionViewSet
 from Groups.views import GroupViewSet
 from Branches.views import BranchViewSet, SubjectViewSet
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
@@ -36,6 +38,11 @@ router.register(r'branches', BranchViewSet)
 router.register(r'subjects', SubjectViewSet)
 router.register(r'students',StudentViewSet)
 router.register(r'groups',GroupViewSet)
+router.register(r'lessons',LessonsViewSet)
+router.register(r'attendance',AttendanceViewSet)
+router.register(r'subscriptions', SubscriptionPlanViewSet)
+
+
 
 
 
@@ -53,6 +60,11 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/token/', CustomUserTokenObtainPairView.as_view(), name='token_refresh'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+
+    path('student-subscriptions/', StudentSubscriptionViewSet.as_view({'get': 'list', 'post': 'create'}), name='student-subscriptions'),
+    path('student-subscriptions/<int:pk>/', StudentSubscriptionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='student-subscription-detail'),
+
 
 
     

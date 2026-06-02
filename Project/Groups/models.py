@@ -11,7 +11,9 @@ class Group(models.Model):
 
     status = models.CharField(max_length=10, choices=STARUS_CHOICES, default='ACTIVE')
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='group')
-    students = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='group')
+    students = models.ManyToManyField(Student, related_name='groups')
+    join_date = models.DateField(auto_now_add=True)
+    leave_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} - {self.status}"

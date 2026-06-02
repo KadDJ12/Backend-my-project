@@ -7,6 +7,7 @@ from .models import Student
 from rest_framework.filters import SearchFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
+from rest_framework.decorators import action
 
 
 
@@ -53,6 +54,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             }, 
             status=status.HTTP_200_OK
         )  
+    
 
 
 
