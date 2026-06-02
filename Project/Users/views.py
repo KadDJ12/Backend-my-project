@@ -16,10 +16,13 @@ from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from Users.serializers import UserUpdateSerializer
 
+
 class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
     def get(self, request):
         if request.user.is_authenticated:
-            return redirect('home')
+            return redirect('/users/me/')
+
         return render(request, 'Project/login.html')
     
     def post(self, request):
@@ -32,7 +35,7 @@ class LoginView(APIView):
         user = authenticate(request, phone=phone, password=password)
         if user and user.is_active:
             login(request, user)
-            return redirect('home')
+            return redirect('/users/me/')
         return Response({'error': 'Phone or password is incorrect.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Lesson, Attendance
+from .models import Lesson, Attendance,LessonTemplate
 from Users.models import CustomUser
 from Branches.models import Branch
 from Groups.models import Group
@@ -23,3 +23,28 @@ class AttendendanseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = ['id', 'lesson', 'student', 'present']
+
+
+
+
+class LessonTemplateSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.ReadOnlyField(source='teacher.first_name')
+    branch_name = serializers.ReadOnlyField(source='branch.name')
+    group_name = serializers.ReadOnlyField(source='group.name')
+    student_name = serializers.ReadOnlyField(source='student.first_name')
+
+    class Meta:
+        model = LessonTemplate
+        fields = [
+            'id', 'branch', 'branch_name', 'teacher', 'teacher_name', 
+            'subject', 'student', 'student_name', 'group', 'group_name', 
+            'days_of_week', 'start_time', 'end_time', 'start_date', 'end_date', 'is_active'
+        ]
+
+    def validate(self, attrs):
+        # Додаткова перевірка на рівні серіалізатора (про всяк випадок)
+        if attrs.get('start_date') > attrs.get('end_date'):
+            raise serializers.ValidationError({"start_date": "Дата початку не може бути більшою за дату закінчення."})
+        return attrs
+
+

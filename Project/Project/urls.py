@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from Users.views import LoginView, UserViewSet, CustomUserTokenObtainPairView
 from Students.views import StudentViewSet
-from Lessons.views import LessonsViewSet,AttendanceViewSet
+from Lessons.views import LessonsViewSet,AttendanceViewSet, LessonTemplateViewSet
 from Subscriptions.views import SubscriptionPlanViewSet, StudentSubscriptionViewSet
 from Groups.views import GroupViewSet
 from Branches.views import BranchViewSet, SubjectViewSet
@@ -33,7 +33,7 @@ from Users import views
 
 
 router = routers.DefaultRouter()
-router.register(r'users', views.UserViewSet)
+router.register(r'users', UserViewSet)
 router.register(r'branches', BranchViewSet)  
 router.register(r'subjects', SubjectViewSet)
 router.register(r'students',StudentViewSet)
@@ -41,6 +41,7 @@ router.register(r'groups',GroupViewSet)
 router.register(r'lessons',LessonsViewSet)
 router.register(r'attendance',AttendanceViewSet)
 router.register(r'subscriptions', SubscriptionPlanViewSet)
+router.register(r'templates', LessonTemplateViewSet, basename='template')
 
 
 
