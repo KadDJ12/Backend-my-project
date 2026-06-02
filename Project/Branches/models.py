@@ -4,11 +4,11 @@ class Branch(models.Model):
     name = models.CharField(max_length=255, unique=True)
     city = models.CharField(max_length=255)
     address = models.CharField(max_length=255,unique=True)
-    STARUS_CHOICES = [
-        ('ACTIVE', 'active'),
-        ('CLOSED', 'closed'),
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('archived', 'Archived'),
     ]
-    status = models.CharField(max_length=10, choices=STARUS_CHOICES, default='ACTIVE')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
 
 
 
@@ -17,11 +17,11 @@ class Branch(models.Model):
 
 class Subject(models.Model):
     name = models.CharField(max_length=255)
-    STARUS_CHOICES = [
-        ('ACTIVE', 'active'),
-        ('CLOSED', 'closed'),
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('archived', 'Archived'),
     ]
-    status = models.CharField(max_length=10, choices=STARUS_CHOICES, default='ACTIVE')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='subject')
 
     class Meta:

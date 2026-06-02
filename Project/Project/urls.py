@@ -36,17 +36,13 @@ router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'branches', BranchViewSet)  
 router.register(r'subjects', SubjectViewSet)
-router.register(r'students',StudentViewSet)
-router.register(r'groups',GroupViewSet)
-router.register(r'lessons',LessonsViewSet)
-router.register(r'attendance',AttendanceViewSet)
-router.register(r'subscriptions', SubscriptionPlanViewSet)
-router.register(r'templates', LessonTemplateViewSet, basename='template')
-
-
-
-
-
+router.register(r'students', StudentViewSet)
+router.register(r'groups', GroupViewSet)
+router.register(r'lessons', LessonsViewSet)
+router.register(r'attendance', AttendanceViewSet)
+router.register(r'subscription-plans', SubscriptionPlanViewSet, basename='subscription-plan')
+router.register(r'student-subscriptions', StudentSubscriptionViewSet, basename='student-subscription')
+router.register(r'lesson-templates', LessonTemplateViewSet, basename='lesson-template')
 
 
 urlpatterns = [ 
@@ -62,12 +58,4 @@ urlpatterns = [
     path('api/token/', CustomUserTokenObtainPairView.as_view(), name='token_refresh'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-
-    path('student-subscriptions/', StudentSubscriptionViewSet.as_view({'get': 'list', 'post': 'create'}), name='student-subscriptions'),
-    path('student-subscriptions/<int:pk>/', StudentSubscriptionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='student-subscription-detail'),
-
-
-
-    
-    
 ] 

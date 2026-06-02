@@ -22,6 +22,53 @@ class BranchViewSet(viewsets.ModelViewSet):
         
         # 🌟 Повертаємо тільки ті філії, до яких цей адмін прив'язаний в адмінці
         return user.branches.all()
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdminRole])
+    def statistics(self, request, pk=None):
+        branch = self.get_object()
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        # 1. Active students count
+        active_students_count = branch.students.filter(status='active').count()
+
+        # 2. Lessons details
+        lessons = branch.lessons.all()
+        if start_date:
+            lessons = lessons.filter(date__gte=start_date)
+        if end_date:
+            lessons = lessons.filter(date__lte=end_date)
+
+        total_lessons = lessons.count()
+        completed_lessons = lessons.filter(status='COMPLETED').count()
+        cancelled_lessons = lessons.filter(status='CANCELLED').count()
+        scheduled_lessons = lessons.filter(status='SCHEDULED').count()
+
+        # 3. Attendance percentage for completed lessons
+        from Lessons.models import Attendance
+        branch_attendances = Attendance.objects.filter(
+            lesson__branch=branch,
+            lesson__status='COMPLETED'
+        )
+        if start_date:
+            branch_attendances = branch_attendances.filter(lesson__date__gte=start_date)
+        if end_date:
+            branch_attendances = branch_attendances.filter(lesson__date__lte=end_date)
+
+        total_attendance_records = branch_attendances.count()
+        present_attendance_records = branch_attendances.filter(present=True).count()
+        attendance_percentage = (present_attendance_records / total_attendance_records * 100) if total_attendance_records > 0 else 0
+
+        return Response({
+            'branch_id': branch.id,
+            'branch_name': branch.name,
+            'active_students_count': active_students_count,
+            'total_lessons': total_lessons,
+            'completed_lessons': completed_lessons,
+            'cancelled_lessons': cancelled_lessons,
+            'scheduled_lessons': scheduled_lessons,
+            'attendance_percentage': round(attendance_percentage, 2)
+        })
     
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all()

@@ -1,14 +1,15 @@
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
-from django.db.models import Q                          # FIX 3: explicit Q import
+from django.db.models import Q
 from Branches.models import Branch, Subject
 from Students.models import Student
 from Groups.models import Group
 from django.core.exceptions import ValidationError
+import datetime
 
 
 class Lesson(models.Model):
-    STATUS_CHOICES = [                                  # FIX typo: STARUS → STATUS
+    STATUS_CHOICES = [
         ('SCHEDULED', 'Scheduled'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
@@ -24,19 +25,27 @@ class Lesson(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='lessons')
 
     student = models.ForeignKey(Student, on_delete=models.CASCADE, null=True, blank=True, related_name='individual_lessons')
-    groups = models.ManyToManyField(Group, blank=True, related_name='group_lessons')
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='group_lessons')
+
     def clean(self):
         super().clean()
 
-        has_groups = self.pk and self.groups.exists()
-
-        if self.student and has_groups:
+        if self.student and self.group:
             raise ValidationError('A lesson cannot be assigned to both a student and a group.')
-        if not self.student and not has_groups:
+        if not self.student and not self.group:
             raise ValidationError('A lesson must be assigned to either a student or a group.')
 
         if hasattr(self, 'teacher') and self.teacher and self.teacher.role != 'teacher':
             raise ValidationError('Assigned teacher must have the TEACHER role.')
+
+        # Check if branch or subject is archived (only for new lessons)
+        if not self.pk:
+            if hasattr(self, 'subject') and self.subject and self.subject.status == 'archived':
+                raise ValidationError('Cannot create a lesson with an archived subject.')
+            if hasattr(self, 'branch') and self.branch and self.branch.status == 'archived':
+                raise ValidationError('Cannot create a lesson in an archived branch.')
+            if self.group and self.group.status == 'archived':
+                raise ValidationError('Cannot create a lesson with an archived group.')
 
         if self.date and self.start_time and self.end_time:
             overlapping_lessons = Lesson.objects.filter(
@@ -50,22 +59,20 @@ class Lesson(models.Model):
 
             if self.student:
                 student_conflicts = overlapping_lessons.filter(
-                    Q(student=self.student) | Q(groups__students=self.student)
+                    Q(student=self.student) | Q(group__students=self.student, group__memberships__leave_date__isnull=True)
                 ).exists()
                 if student_conflicts:
-                    raise ValidationError('This lesson overlaps with another lesson for this student.')
+                    raise ValidationError('This lesson overlaps with another scheduled lesson for the assigned student.')
 
-            if has_groups:
-                group_students = Student.objects.filter(
-                    group_memberships__in=self.groups.all()
-                )
+            if self.group and self.group.pk:
+                # Only check students currently in the group
+                group_students = self.group.students.filter(memberships__leave_date__isnull=True, memberships__group=self.group)
                 group_conflict = overlapping_lessons.filter(
-                    Q(student__in=group_students) | Q(groups__students__in=group_students)
+                    Q(student__in=group_students) | Q(group__students__in=group_students, group__memberships__leave_date__isnull=True)
                 ).distinct().exists()
                 if group_conflict:
-                    raise ValidationError({
-                        'groups': 'Один або більше студентів з цієї групи мають інший урок у цей час.'
-                    })
+                    raise ValidationError({'group': 'Один або більше студентів з цієї групи мають інший урок у цей час.'})
+
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
@@ -92,7 +99,7 @@ class Attendance(models.Model):
 
         if self.lesson.student and self.lesson.student == self.student:
             is_participant = True
-        elif self.lesson.group and self.lesson.group.students.filter(pk=self.student.pk).exists():
+        elif self.lesson.group and self.lesson.group.students.filter(pk=self.student.pk, memberships__leave_date__isnull=True).exists():
             is_participant = True
 
         if not is_participant:
@@ -105,53 +112,85 @@ class Attendance(models.Model):
     def __str__(self):
         status = "Присутній" if self.present else "Відсутній"
         return f"{self.student} - {self.lesson.date} ({status})"
-    
-
-
-
 
 
 class LessonTemplate(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='lesson_templates')
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='lesson_templates')
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='lesson_templates')
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, null=True, blank=True, related_name='individual_templates')
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='group_templates')
-    days_of_week = models.JSONField(help_text="Список ID днів тижня (0 для Понеділка, 6 для Неділі)")
+    
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, null=True, blank=True, related_name='lesson_templates')
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='lesson_templates')
+    
+    days_of_week = models.JSONField() # Array of integers: [0, 2] for Monday, Wednesday
     start_time = models.TimeField()
     end_time = models.TimeField()
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
 
-
     def clean(self):
         super().clean()
-
         if self.student and self.group:
-            raise ValidationError('Шаблон не може бути призначений одночасно студенту і групі.')
+            raise ValidationError('A template cannot have both a student and a group.')
         if not self.student and not self.group:
-            raise ValidationError('Шаблон має бути призначений або студенту, або групі.')
-
-        if self.start_date and self.end_date and self.start_date > self.end_date:
-            raise ValidationError('Дата початку періоду дії не може бути більшою за дату закінчення.')
-
-        if self.start_time and self.end_time and self.start_time >= self.end_time:
-            raise ValidationError('Час початку уроку повинен бути меншим за час його завершення.')
-
-        if not isinstance(self.days_of_week, list) or len(self.days_of_week) == 0:
-            raise ValidationError('Необхідно вказати хоча б один день тижня у вигляді списку чисел.')
+            raise ValidationError('A template must have either a student or a group.')
+        if self.start_date > self.end_date:
+            raise ValidationError('Start date must be before end date.')
+        if self.start_time >= self.end_time:
+            raise ValidationError('Start time must be before end time.')
+        if not isinstance(self.days_of_week, list) or not all(isinstance(d, int) and 0 <= d <= 6 for d in self.days_of_week):
+            raise ValidationError('Days of week must be a list of integers from 0 (Monday) to 6 (Sunday).')
             
-        for day in self.days_of_week:
-            if not isinstance(day, int) or day < 0 or day > 6:
-                raise ValidationError('ID дня тижня має бути цілим числом від 0 (Понеділок) до 6 (Неділя).')
+        if self.subject and self.subject.status == 'archived':
+            raise ValidationError('Cannot create a template with an archived subject.')
+        if self.branch and self.branch.status == 'archived':
+            raise ValidationError('Cannot create a template in an archived branch.')
+        if self.group and self.group.status == 'archived':
+            raise ValidationError('Cannot create a template with an archived group.')
 
+    def generate_lessons(self, strategy='block'):
+        """
+        Generates individual lessons based on the template.
+        strategy: 'block' (fail everything on any conflict) or 'skip' (create conflict-free, list skipped ones)
+        """
+        created_lessons = []
+        conflicts = []
+        
+        current_date = self.start_date
+        while current_date <= self.end_date:
+            if current_date.weekday() in self.days_of_week:
+                lesson = Lesson(
+                    branch=self.branch,
+                    teacher=self.teacher,
+                    subject=self.subject,
+                    student=self.student,
+                    group=self.group,
+                    date=current_date,
+                    start_time=self.start_time,
+                    end_time=self.end_time,
+                    title=f"{self.subject.name} - Recurring",
+                    status='SCHEDULED'
+                )
+                try:
+                    lesson.clean()
+                    created_lessons.append(lesson)
+                except ValidationError as e:
+                    conflicts.append({
+                        'date': current_date.strftime('%Y-%m-%d'),
+                        'error': e.message_dict if hasattr(e, 'message_dict') else str(e)
+                    })
+            current_date += datetime.timedelta(days=1)
 
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+        if conflicts and strategy == 'block':
+            raise ValidationError({
+                'message': 'Conflicts detected for some planned dates. Creation blocked.',
+                'conflicts': conflicts
+            })
 
+        # Save generated lessons
+        with transaction.atomic():
+            for lesson in created_lessons:
+                lesson.save()
 
-    def __str__(self):
-        type_name = f"Група {self.group.name}" if self.group else f"Студент {self.student.first_name}"
-        return f"Шаблон: {self.subject.name} для {type_name} ({self.start_date} - {self.end_date})"
+        return created_lessons, conflicts

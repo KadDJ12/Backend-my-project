@@ -1,16 +1,20 @@
 from rest_framework import serializers
 from .models import Group
 from Branches.models import Branch
-from Students.models import Student
 
 class GroupSerializer(serializers.ModelSerializer):
     branch = serializers.SlugRelatedField(
         slug_field='name',
         queryset=Branch.objects.all()
     )
-    class Meta():
+    students = serializers.PrimaryKeyRelatedField(
+        many=True,
+        read_only=True
+    )
+    
+    class Meta:
         model = Group
-        fields = ['name','status','branch','students','id']
+        fields = ['id', 'name', 'status', 'branch', 'students']
 
 
 

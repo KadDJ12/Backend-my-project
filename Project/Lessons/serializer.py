@@ -1,50 +1,51 @@
 from rest_framework import serializers
-from .models import Lesson, Attendance,LessonTemplate
+from .models import Lesson, Attendance, LessonTemplate
 from Users.models import CustomUser
 from Branches.models import Branch
 from Groups.models import Group
 from Students.models import Student
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 
 class LessonsSerializer(serializers.ModelSerializer):
-    teacher = serializers.SlugRelatedField(slug_field='first_name', queryset=CustomUser.objects.filter(role='teacher'))
-    branch = serializers.SlugRelatedField(slug_field='name', queryset=Branch.objects.all())
-    group = serializers.SlugRelatedField(slug_field='name', queryset=Group.objects.all())
-
     class Meta:
         model = Lesson
-        fields = ['id', 'title', 'date', 'start_time', 'end_time', 'status', 'teacher', 'branch', 'group']
+        fields = ['id', 'title', 'date', 'start_time', 'end_time', 'status', 'teacher', 'branch', 'student', 'group']
 
 
 class AttendendanseSerializer(serializers.ModelSerializer):
-    student = serializers.SlugRelatedField(slug_field='first_name', queryset=Student.objects.all())
-    lesson = serializers.SlugRelatedField(slug_field='title', queryset=Lesson.objects.all())
-
     class Meta:
         model = Attendance
         fields = ['id', 'lesson', 'student', 'present']
 
 
-
-
 class LessonTemplateSerializer(serializers.ModelSerializer):
-    teacher_name = serializers.ReadOnlyField(source='teacher.first_name')
-    branch_name = serializers.ReadOnlyField(source='branch.name')
-    group_name = serializers.ReadOnlyField(source='group.name')
-    student_name = serializers.ReadOnlyField(source='student.first_name')
+    strategy = serializers.ChoiceField(choices=['block', 'skip'], write_only=True, default='block')
 
     class Meta:
         model = LessonTemplate
         fields = [
-            'id', 'branch', 'branch_name', 'teacher', 'teacher_name', 
-            'subject', 'student', 'student_name', 'group', 'group_name', 
-            'days_of_week', 'start_time', 'end_time', 'start_date', 'end_date', 'is_active'
+            'id', 'branch', 'teacher', 'subject', 'student', 'group', 
+            'days_of_week', 'start_time', 'end_time', 'start_date', 'end_date', 
+            'is_active', 'strategy'
         ]
 
-    def validate(self, attrs):
-        # Додаткова перевірка на рівні серіалізатора (про всяк випадок)
-        if attrs.get('start_date') > attrs.get('end_date'):
-            raise serializers.ValidationError({"start_date": "Дата початку не може бути більшою за дату закінчення."})
-        return attrs
+    def create(self, validated_data):
+        strategy = validated_data.pop('strategy', 'block')
+        
+        try:
+            template = super().create(validated_data)
+            # Generate individual lessons
+            created_lessons, conflicts = template.generate_lessons(strategy=strategy)
+            
+            # Pass data back via context to viewset
+            self.context['lessons_created_count'] = len(created_lessons)
+            self.context['conflicts'] = conflicts
+            
+        except DjangoValidationError as e:
+            if 'template' in locals():
+                template.delete()
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
 
-
+        return template
