@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -89,6 +90,7 @@ WSGI_APPLICATION = 'Project.wsgi.application'
 import sys
 
 if 'test' in sys.argv:
+    # Залишаємо твою логіку для тестів без змін
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -96,15 +98,17 @@ if 'test' in sys.argv:
         }
     }
 else:
+    # Використовуємо dj_database_url для Render або локального Docker
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'course_db'),
-            'USER': os.environ.get('DB_USER', 'course_user'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'course_password'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': '5432',
-        }
+        'default': dj_database_url.config(
+            # Якщо DATABASE_URL немає (наприклад, локально), використовуємо твої старі дані як fallback
+            default=os.environ.get(
+                'DATABASE_URL', 
+                f"postgres://{os.environ.get('DB_USER', 'course_user')}:{os.environ.get('DB_PASSWORD', 'course_password')}@{os.environ.get('DB_HOST', 'localhost')}:5432/{os.environ.get('DB_NAME', 'course_db')}"
+            ),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
 
 
