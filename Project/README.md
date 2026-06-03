@@ -59,3 +59,9 @@
 SECRET_KEY=your_django_secret_key_here
 DEBUG=True
 DATABASE_URL=postgres://mykhailo:password@db:5432/project_db
+
+
+
+я прописав код там можна залогінитися як адмін 
+номер - 0984097270
+пароль - 12345
