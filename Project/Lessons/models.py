@@ -38,7 +38,6 @@ class Lesson(models.Model):
         if hasattr(self, 'teacher') and self.teacher and self.teacher.role != 'teacher':
             raise ValidationError('Assigned teacher must have the TEACHER role.')
 
-        # Check if branch or subject is archived (only for new lessons)
         if not self.pk:
             if hasattr(self, 'subject') and self.subject and self.subject.status == 'archived':
                 raise ValidationError('Cannot create a lesson with an archived subject.')
@@ -54,6 +53,8 @@ class Lesson(models.Model):
                 end_time__gt=self.start_time,
             ).exclude(pk=self.pk).exclude(status='CANCELLED')
 
+
+
             if overlapping_lessons.filter(teacher=self.teacher).exists():
                 raise ValidationError('This teacher already has a lesson scheduled at this time.')
 
@@ -65,7 +66,6 @@ class Lesson(models.Model):
                     raise ValidationError('This lesson overlaps with another scheduled lesson for the assigned student.')
 
             if self.group and self.group.pk:
-                # Only check students currently in the group
                 group_students = self.group.students.filter(memberships__leave_date__isnull=True, memberships__group=self.group)
                 group_conflict = overlapping_lessons.filter(
                     Q(student__in=group_students) | Q(group__students__in=group_students, group__memberships__leave_date__isnull=True)
@@ -89,29 +89,38 @@ class Attendance(models.Model):
     class Meta:
         unique_together = ('lesson', 'student')
 
+
     def clean(self):
         super().clean()
-
         if self.lesson.status == 'CANCELLED':
             raise ValidationError('Cannot mark attendance for a cancelled lesson.')
-
         is_participant = False
-
         if self.lesson.student and self.lesson.student == self.student:
             is_participant = True
         elif self.lesson.group and self.lesson.group.students.filter(pk=self.student.pk, memberships__leave_date__isnull=True).exists():
             is_participant = True
-
         if not is_participant:
             raise ValidationError('Цього студента немає в списках на цей урок.')
+
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
 
+
     def __str__(self):
         status = "Присутній" if self.present else "Відсутній"
         return f"{self.student} - {self.lesson.date} ({status})"
+
+
+
+
+
+
+
+
+
+
 
 
 class LessonTemplate(models.Model):
@@ -122,7 +131,7 @@ class LessonTemplate(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, null=True, blank=True, related_name='lesson_templates')
     group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='lesson_templates')
     
-    days_of_week = models.JSONField() # Array of integers: [0, 2] for Monday, Wednesday
+    days_of_week = models.JSONField() 
     start_time = models.TimeField()
     end_time = models.TimeField()
     start_date = models.DateField()
@@ -150,27 +159,27 @@ class LessonTemplate(models.Model):
             raise ValidationError('Cannot create a template with an archived group.')
 
     def generate_lessons(self, strategy='block'):
-        """
-        Generates individual lessons based on the template.
-        strategy: 'block' (fail everything on any conflict) or 'skip' (create conflict-free, list skipped ones)
-        """
         created_lessons = []
-        conflicts = []
-        
+        conflicts = []        
         current_date = self.start_date
+        days = self.days_of_week
+        if isinstance(days, str):
+            import json
+            days = json.loads(days)
+        days = [int(d) for d in days]
         while current_date <= self.end_date:
-            if current_date.weekday() in self.days_of_week:
+            if current_date.weekday() in days:
                 lesson = Lesson(
-                    branch=self.branch,
-                    teacher=self.teacher,
-                    subject=self.subject,
-                    student=self.student,
-                    group=self.group,
-                    date=current_date,
-                    start_time=self.start_time,
-                    end_time=self.end_time,
-                    title=f"{self.subject.name} - Recurring",
-                    status='SCHEDULED'
+                branch=self.branch,
+                teacher=self.teacher,
+                subject=self.subject,
+                student=self.student,
+                group=self.group,
+                date=current_date,                    
+                start_time=self.start_time,
+                end_time=self.end_time,
+                title=f"{self.subject.name} - Recurring",
+                status='SCHEDULED'
                 )
                 try:
                     lesson.clean()
@@ -187,8 +196,6 @@ class LessonTemplate(models.Model):
                 'message': 'Conflicts detected for some planned dates. Creation blocked.',
                 'conflicts': conflicts
             })
-
-        # Save generated lessons
         with transaction.atomic():
             for lesson in created_lessons:
                 lesson.save()

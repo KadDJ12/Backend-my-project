@@ -6,6 +6,7 @@ from .serializer import BranchSerializer, SubjectSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from Users.permissions import IsAdminRole
+from Lessons.models import Attendance
 
 
 
@@ -20,32 +21,26 @@ class BranchViewSet(viewsets.ModelViewSet):
         if not user or user.is_anonymous:
             return Branch.objects.none()
         
-        # 🌟 Повертаємо тільки ті філії, до яких цей адмін прив'язаний в адмінці
-        return user.branches.all()
+        return user.branches.filter(status='active')
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdminRole])
     def statistics(self, request, pk=None):
         branch = self.get_object()
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-
-        # 1. Active students count
         active_students_count = branch.students.filter(status='active').count()
-
-        # 2. Lessons details
         lessons = branch.lessons.all()
         if start_date:
             lessons = lessons.filter(date__gte=start_date)
         if end_date:
             lessons = lessons.filter(date__lte=end_date)
-
         total_lessons = lessons.count()
+
         completed_lessons = lessons.filter(status='COMPLETED').count()
         cancelled_lessons = lessons.filter(status='CANCELLED').count()
         scheduled_lessons = lessons.filter(status='SCHEDULED').count()
 
-        # 3. Attendance percentage for completed lessons
-        from Lessons.models import Attendance
+
         branch_attendances = Attendance.objects.filter(
             lesson__branch=branch,
             lesson__status='COMPLETED'
@@ -69,19 +64,36 @@ class BranchViewSet(viewsets.ModelViewSet):
             'scheduled_lessons': scheduled_lessons,
             'attendance_percentage': round(attendance_percentage, 2)
         })
+
+    def destroy(self, request, *args, **kwargs):
+        from Students.models import Student
+        from Lessons.models import Lesson
+        branch = self.get_object()
+        has_active_students = Student.objects.filter(branch=branch, status='active').exists()
+        has_active_lessons = Lesson.objects.filter(branch=branch, status='SCHEDULED').exists()
+        if has_active_students or has_active_lessons:
+            return Response(
+                {'error': 'Неможливо архівувати філію: є активні студенти або плановані уроки.'},
+                status=400
+            )
+        branch.status = 'archived'
+        branch.save()
+        return Response({'message': f'Філію "{branch.name}" архівовано.'}, status=200)
     
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated, IsAdminRole]
 
-
     def get_queryset(self):
         user = self.request.user
         if not user or user.is_anonymous:
             return Subject.objects.none()
         
-        return self.queryset.filter(branch__in=user.branches.all()).distinct()
+        return self.queryset.filter(branch__in=user.branches.all(), status='active').distinct()
+
+
+
 
     # @action(detail=False, methods=['get'], url_path='math')
     # def get_math_subjects(self, request):
@@ -105,5 +117,11 @@ class SubjectViewSet(viewsets.ModelViewSet):
     #         return Response(serializer.data, status=201)
     #     return Response(ValueError(serializer.errors), status=400)
 
-        
 
+
+
+    def destroy(self, request, *args, **kwargs):
+        subject = self.get_object()
+        subject.status = 'archived'
+        subject.save()
+        return Response({'message': f'Предмет "{subject.name}" архівовано.'}, status=200)

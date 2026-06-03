@@ -14,18 +14,20 @@ class LessonsViewSet(viewsets.ModelViewSet):
     serializer_class = LessonsSerializer
     permission_classes = [IsAdminOrTeacherRole, IsAuthenticated]
 
+ 
     def get_queryset(self):
         user = self.request.user
         if not user or user.is_anonymous:
             return Lesson.objects.none()
-
         if user.is_superuser:
             return Lesson.objects.all()
-            
+        if user.role == 'teacher':
+            return Lesson.objects.filter(teacher=user)
         return Lesson.objects.filter(
             branch__in=user.branches.all()
         ).distinct()
     
+
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.user.role == 'teacher' and request.method not in ['GET', 'HEAD', 'OPTIONS']:
@@ -34,15 +36,16 @@ class LessonsViewSet(viewsets.ModelViewSet):
                 message='Teacher is not allowed to create or edit lessons.'
             )
 
+
     def destroy(self, request, *args, **kwargs):
         lesson = self.get_object()
         lesson.status = 'CANCELLED'
         lesson.save()
-
         return Response(
             {'message': f'Заняття "{lesson.title if hasattr(lesson, "title") else lesson.id}" успішно скасовано.'}, 
             status=status.HTTP_200_OK
         )
+
 
     @action(detail=False, methods=['get'])
     def teacher_schedule(self, request):
@@ -52,20 +55,15 @@ class LessonsViewSet(viewsets.ModelViewSet):
 
         if not teacher_id:
             return Response({'error': 'teacher_id query parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
         user = request.user
-        # Restrict teacher to only see their own schedule
         if user.role == 'teacher' and str(user.id) != str(teacher_id):
             return Response({'error': 'You do not have permission to view other teachers schedule.'}, status=status.HTTP_403_FORBIDDEN)
 
         queryset = Lesson.objects.filter(teacher_id=teacher_id)
-
         if start_date:
             queryset = queryset.filter(date__gte=start_date)
         if end_date:
             queryset = queryset.filter(date__lte=end_date)
-
-        # Restrict admin to their assigned branches
         if not user.is_superuser and user.role == 'admin':
             queryset = queryset.filter(branch__in=user.branches.all()).distinct()
 
@@ -73,10 +71,13 @@ class LessonsViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+
+
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendendanseSerializer
     permission_classes = [IsAdminOrTeacherRole, IsAuthenticated]
+
 
     def get_queryset(self):
         user = self.request.user
@@ -86,10 +87,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return Attendance.objects.all()
 
+        if user.role == 'teacher':
+            return Attendance.objects.filter(lesson__teacher=user)
+
         return Attendance.objects.filter(
             lesson__branch__in=user.branches.all()
         ).distinct()
     
+
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.user.role == 'teacher' and request.method not in ['GET', 'POST', 'PUT', 'PATCH', 'HEAD', 'OPTIONS']:
@@ -98,11 +103,41 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 message='Teacher is not allowed to delete attendance records.'
             )
 
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 'teacher':
+            lesson_id = request.data.get('lesson')
+            if lesson_id:
+                try:
+                    lesson = Lesson.objects.get(pk=lesson_id)
+                    if lesson.teacher != user:
+                        return Response(
+                            {"error": "You can only mark attendance for your own lessons."},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                except Lesson.DoesNotExist:
+                    pass
+        return super().create(request, *args, **kwargs)
+
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 'teacher':
+            attendance = self.get_object()
+            if attendance.lesson.teacher != user:
+                return Response(
+                    {"error": "You can only edit attendance for your own lessons."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().update(request, *args, **kwargs)
+    
+    
     def destroy(self, request, *args, **kwargs):
         attendance = self.get_object()
         attendance.delete()
         return Response(
-            {'message': 'Запис про відвідуваність успішно видалено.'}, 
+            {'message': 'Запис про відвідуваність успішно видалено.'},
             status=status.HTTP_200_OK
         )
 
@@ -112,6 +147,7 @@ class LessonTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = LessonTemplateSerializer
     permission_classes = [IsAuthenticated, IsAdminRole]
 
+
     def get_queryset(self):
         user = self.request.user
         if not user or user.is_anonymous:
@@ -120,14 +156,13 @@ class LessonTemplateViewSet(viewsets.ModelViewSet):
             return LessonTemplate.objects.all()
         return LessonTemplate.objects.filter(branch__in=user.branches.all()).distinct()
 
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        
         headers = self.get_success_headers(serializer.data)
         response_data = serializer.data
-        
         response_data['lessons_created'] = serializer.context.get('lessons_created_count', 0)
         response_data['conflicts'] = serializer.context.get('conflicts', [])
         

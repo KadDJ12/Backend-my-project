@@ -10,7 +10,7 @@ from Branches.models import Branch
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
-    branches = serializers.SlugRelatedField( # щоб відображалося імя філії а не її айді 
+    branches = serializers.SlugRelatedField( 
         many=True,
         read_only = True,
         slug_field='name' 
@@ -31,7 +31,6 @@ class CustomUserSerializer(serializers.ModelSerializer):
             phone=validated_data['phone'],
             password=validated_data['password'],
             role=validated_data.get('role', 'teacher'),
-            branches=validated_data.get('branches')
         )
         if branches_data is not None:
             user.branches.set(branches_data)
